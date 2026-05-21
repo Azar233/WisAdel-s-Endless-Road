@@ -1,17 +1,14 @@
 extends CharacterBody2D
+class_name Player
 
 const NORMAL_ANIMATION_PREFIX := &"normal"
 
 const BULLET_SCENE := preload("res://scene/bullet.tscn")
 const ARMED_ANIMATION_PREFIX := &"armed"
-
+const DEFAULT_MOVE_SPEED_MULTIPLIER := 1.0
 const DEFAULT_FIRE_RATE_MULTIPLIER := 1.0
 const SPIRAL_PHASE_STEP := PI / 12
 
-const PLAYER_FORM_MODE_NORMAL := 0
-const PLAYER_FORM_MODE_ARMED := 1
-const SHOT_PATTERN_NORMAL := 0
-const SHOT_PATTERN_SPIRAL := 1
 
 # 角色动画节点
 @onready var body_sprite: AnimatedSprite2D = $BodySprite2D
@@ -22,14 +19,21 @@ const SHOT_PATTERN_SPIRAL := 1
 
 # 当前朝向后缀
 var facing_suffix: StringName = &"right"
-# 普通射速倍率
+
+# 当前移速倍率
+var current_move_speed_multiplier: float = DEFAULT_MOVE_SPEED_MULTIPLIER
+# 普通射速道具提供的射速倍率
 var rapid_fire_rate_multiplier: float = DEFAULT_FIRE_RATE_MULTIPLIER
-# 强化射速倍率
+# 形态道具提供的射速倍率
 var form_fire_rate_multiplier: float = DEFAULT_FIRE_RATE_MULTIPLIER
 # 当前玩家形态
-var current_form_mode: int = PLAYER_FORM_MODE_NORMAL
+var current_form_mode: int = PickupConfig.PlayerFormMode.NORMAL
 # 当前弹幕模式
-var current_shot_pattern: int = SHOT_PATTERN_NORMAL
+var current_shot_pattern: int = PickupConfig.ShotPattern.NORMAL
+# 三类buff的持续时间
+var speed_buff_time_left: float = 0.0
+var rapid_buff_time_left: float = 0.0
+var form_buff_time_left: float = 0.0
 # 螺旋弹幕的相位
 var spiral_phase: float = 0.0
 
@@ -47,15 +51,18 @@ func _ready() -> void:
 	_update_armed_effect()
 
 func _physics_process(delta: float) -> void:
+	# 更新道具效果
+	_update_pickup_effects(delta)
+	
 	# 读取移动方向
 	var move_input := Input.get_vector("move_left","move_right","move_up","move_down")
 	# 读取射击方向
 	var shoot_input:= Input.get_vector("shoot_left","shoot_right","shoot_up","shoot_down")
 	
-	velocity = move_input * move_speed
+	velocity = move_input * _get_effective_move_speed()
 	move_and_slide()
 	
-	if current_shot_pattern == SHOT_PATTERN_SPIRAL:
+	if current_shot_pattern == PickupConfig.ShotPattern.SPIRAL:
 		_try_auto_spiral_shoot()
 	elif shoot_input != Vector2.ZERO:
 		_try_shoot(shoot_input)
@@ -79,7 +86,7 @@ func _update_animation() -> void:
 
 # 射击方向优先于移动方向
 func _update_facing(move_input: Vector2, shoot_input: Vector2) -> void:
-	if current_shot_pattern == SHOT_PATTERN_SPIRAL:
+	if current_shot_pattern == PickupConfig.ShotPattern.SPIRAL:
 		if move_input != Vector2.ZERO:
 			facing_suffix = _vector_to_facing_suffix(move_input)
 		return
@@ -100,9 +107,57 @@ func _try_shoot(shoot_input: Vector2) -> void:
 	if has_spawn_bullet:
 		shooting_timer.start(_get_effective_fire_interval())
 
+# 道具的统一入口
+func apply_pickup(config: PickupConfig) -> bool:
+	if config == null:
+		return false
+	# 道具是否被拾取的标志
+	var applied := false
+	# 射速参数是否变化
+	var should_refresh_shooting_timer := false
+	# 本次buff持续时间
+	var buff_duration := maxf(config.duration, 0.0)
+	var has_form_ovverride := (
+		config.player_form_mode != PickupConfig.PlayerFormMode.NORMAL
+		or config.shot_pattern != PickupConfig.ShotPattern.NORMAL
+	)
+	var has_fire_rate_override := not is_equal_approx(
+		config.fire_rate_multiplier,
+		DEFAULT_FIRE_RATE_MULTIPLIER
+	)
+	
+	if not is_equal_approx(config.move_speed_multiplier, DEFAULT_MOVE_SPEED_MULTIPLIER):
+		current_move_speed_multiplier = config.move_speed_multiplier
+		speed_buff_time_left = buff_duration
+		applied = true
+		
+	if has_fire_rate_override and not has_form_ovverride:
+		rapid_fire_rate_multiplier = config.fire_rate_multiplier
+		rapid_buff_time_left = buff_duration
+		should_refresh_shooting_timer = true
+		applied = true
+		
+	if has_form_ovverride:
+		current_form_mode = config.player_form_mode
+		current_shot_pattern = config.shot_pattern
+		form_fire_rate_multiplier = (
+			config.fire_rate_multiplier if has_fire_rate_override else DEFAULT_FIRE_RATE_MULTIPLIER
+		)
+		form_buff_time_left = buff_duration
+		# 相位角重置为0
+		spiral_phase = 0.0
+		should_refresh_shooting_timer = true
+		applied = true
+	
+	if should_refresh_shooting_timer:
+		_refresh_shooting_timer_wait_time()
+	
+	return applied
+	
+	
 # 发射子弹
 func _fire_bullets(base_direction: Vector2) -> bool:
-	if current_shot_pattern == SHOT_PATTERN_SPIRAL:
+	if current_shot_pattern == PickupConfig.ShotPattern.SPIRAL:
 		# 螺旋发射前向后向两颗子弹
 		var has_spawned_forward_bullet := _spawn_bullet(base_direction)
 		var has_spawned_backward_bullet := _spawn_bullet(base_direction.rotated(PI)) 
@@ -138,6 +193,33 @@ func _try_auto_spiral_shoot() -> void:
 	if has_spawned_bullet:
 		shooting_timer.start(_get_effective_fire_interval())
 
+# 每帧更新道具buff的剩余时间，到期后恢复默认
+func _update_pickup_effects(delta: float) -> void:
+	# 移速buff处理
+	if speed_buff_time_left > 0.0:
+		speed_buff_time_left = maxf(speed_buff_time_left - delta, 0.0)
+		if speed_buff_time_left <= 0.0:
+			current_move_speed_multiplier = DEFAULT_MOVE_SPEED_MULTIPLIER
+	# 射速buff处理
+	if rapid_buff_time_left > 0.0:
+		rapid_buff_time_left = maxf(rapid_buff_time_left - delta, 0.0)
+		if rapid_buff_time_left <= 0.0:
+			rapid_fire_rate_multiplier = DEFAULT_FIRE_RATE_MULTIPLIER
+			_refresh_shooting_timer_wait_time()
+	# 强化buff处理
+	if form_buff_time_left > 0.0:
+		form_buff_time_left = maxf(form_buff_time_left - delta, 0.0)
+		if form_buff_time_left <= 0.0:
+			current_form_mode = PickupConfig.PlayerFormMode.NORMAL
+			current_shot_pattern = PickupConfig.ShotPattern.NORMAL
+			form_fire_rate_multiplier = DEFAULT_FIRE_RATE_MULTIPLIER
+			spiral_phase = 0.0
+			_refresh_shooting_timer_wait_time() 
+
+
+func _get_effective_move_speed() -> float:
+	return move_speed * current_move_speed_multiplier
+
 # 计算有效开火间隔,射速倍率越高，开火间隔越短
 func _get_effective_fire_interval() -> float:
 	return maxf(fire_interval / _get_effective_fire_rate_multiplier(), 0.01)
@@ -151,22 +233,33 @@ func _get_effective_fire_rate_multiplier() -> float:
 
 # 只要玩家处于特殊形式，视为强化生效
 func _has_active_form_override() -> bool:
-	if current_form_mode != PLAYER_FORM_MODE_NORMAL or current_shot_pattern != SHOT_PATTERN_NORMAL:
+	if current_form_mode != PickupConfig.PlayerFormMode.NORMAL or current_shot_pattern != PickupConfig.ShotPattern.NORMAL:
 		return true
 	
 	return false
 	
+# 统一刷新射击计时器的基础间隔
+func _refresh_shooting_timer_wait_time() -> void:
+	var new_interval :=	_get_effective_fire_interval()
+	shooting_timer.wait_time = new_interval
+	
+	# 如果玩家在冷却中拾取了更快射速buff，需要让冷却效果缩减
+	if shooting_timer.is_stopped():
+		return
+	if shooting_timer.time_left <= new_interval:
+		return
+	shooting_timer.start(new_interval)
 
 # 根据当前形态选择动画前缀
 func _get_animation_prefix() -> StringName:
-	if current_form_mode == PLAYER_FORM_MODE_ARMED:
+	if current_form_mode == PickupConfig.PlayerFormMode.ARMED:
 		return ARMED_ANIMATION_PREFIX
 		
 	return NORMAL_ANIMATION_PREFIX
 
 # 强化形态显示浮游炮动画
 func _update_armed_effect() -> void:
-	var is_armed := current_form_mode == PLAYER_FORM_MODE_ARMED
+	var is_armed := current_form_mode == PickupConfig.PlayerFormMode.ARMED
 	
 	if not is_armed:
 		if armed_effect_sprite.visible:
@@ -185,9 +278,6 @@ func _update_armed_effect() -> void:
 	if armed_effect_sprite.sprite_frames.has_animation("&default"):
 		armed_effect_sprite.play("&default")
 	
-
-
-
 
 # 将二维vec映射为四方动画
 func _vector_to_facing_suffix(direction: Vector2) -> StringName:
