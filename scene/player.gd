@@ -8,7 +8,7 @@ const ARMED_ANIMATION_PREFIX := &"armed"
 const DEFAULT_MOVE_SPEED_MULTIPLIER := 1.0
 const DEFAULT_FIRE_RATE_MULTIPLIER := 1.0
 const SPIRAL_PHASE_STEP := PI / 12
-
+const BLINK_ENABLED_SHADER_PARAMETER := &"blink_enabled"
 
 # 角色动画节点
 @onready var body_sprite: AnimatedSprite2D = $BodySprite2D
@@ -39,21 +39,37 @@ var spiral_phase: float = 0.0
 
 # 参数设置
 @export var move_speed: float = 120.0
+@export var max_health: int = 5
+@export var invincibility_duration: float = 1.0
+
+# 运行时变量
+var current_health: int = 0
+var invincibility_time_left: float = 0.0
+var is_dead: bool = false
+
 @export var fire_interval: float = 0.18
 @export var bullet_spawn_distance: float = 18.0
 
 
 
 func _ready() -> void:
+	current_health = maxi(max_health, 1)
 	shooting_timer.one_shot = true
 	shooting_timer.wait_time = _get_effective_fire_interval()
+	_set_hurt_blink_enabled(false)
 	_update_animation()
 	_update_armed_effect()
 
 func _physics_process(delta: float) -> void:
+	# 更新无敌时间
+	_update_invincibility(delta)
 	# 更新道具效果
 	_update_pickup_effects(delta)
 	
+	if is_dead:
+		velocity = Vector2.ZERO
+		return
+
 	# 读取移动方向
 	var move_input := Input.get_vector("move_left","move_right","move_up","move_down")
 	# 读取射击方向
@@ -155,6 +171,28 @@ func apply_pickup(config: PickupConfig) -> bool:
 	return applied
 	
 	
+# 统一伤害入口让玩家受伤
+func apply_damage(amount: int) -> bool:
+	# 防御性检测
+	if is_dead:
+		return false
+	if amount <= 0:
+		return false
+	if invincibility_time_left > 0.0:
+		return false
+	
+	current_health = maxi(current_health - amount, 0)
+	if current_health <= 0:
+		_die()
+		return false
+	_start_invincibility()
+	return true
+
+# 查询玩家生命值接口
+func get_current_health() -> int:
+	return current_health
+
+
 # 发射子弹
 func _fire_bullets(base_direction: Vector2) -> bool:
 	if current_shot_pattern == PickupConfig.ShotPattern.SPIRAL:
@@ -216,6 +254,17 @@ func _update_pickup_effects(delta: float) -> void:
 			spiral_phase = 0.0
 			_refresh_shooting_timer_wait_time() 
 
+# 更新玩家无敌时间
+func _update_invincibility(delta: float) -> void:
+	if invincibility_time_left <= 0.0:
+		return
+	
+	invincibility_time_left = maxf(invincibility_time_left - delta, 0.0)
+	if invincibility_time_left > 0.0:
+		return 
+	
+	_set_hurt_blink_enabled(false)
+
 
 func _get_effective_move_speed() -> float:
 	return move_speed * current_move_speed_multiplier
@@ -249,6 +298,30 @@ func _refresh_shooting_timer_wait_time() -> void:
 	if shooting_timer.time_left <= new_interval:
 		return
 	shooting_timer.start(new_interval)
+
+
+# 开启玩家受伤后的无敌闪烁状态
+func _start_invincibility() -> void:
+	invincibility_time_left = maxf(invincibility_duration, 0.0)
+	_set_hurt_blink_enabled(invincibility_time_left > 0.0)
+
+# 统一设置玩家手机闪烁开关
+func _set_hurt_blink_enabled(enabled: bool) -> void:
+	var sprite_material := body_sprite.material as ShaderMaterial
+	if sprite_material != null:
+		sprite_material.set_shader_parameter(BLINK_ENABLED_SHADER_PARAMETER, enabled)
+
+# 玩家死亡
+func _die() -> void:
+	is_dead = true
+	velocity = Vector2.ZERO
+	invincibility_time_left = 0.0
+	_set_hurt_blink_enabled(false)
+	shooting_timer.stop()
+	armed_effect_sprite.visible = false
+	armed_effect_sprite.stop()
+
+	
 
 # 根据当前形态选择动画前缀
 func _get_animation_prefix() -> StringName:

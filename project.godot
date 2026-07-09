@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="my_tutorial"
+config/name="WisAdel-s-Endless-Road"
 run/main_scene="res://scene/game.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"

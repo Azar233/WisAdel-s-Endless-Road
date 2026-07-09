@@ -21,11 +21,11 @@ enum DeathSequenceStage {
 @export var hurt_blink_duration: float = 0.16
 
 @onready var animated_sprite: AnimatedSprite2D = $AnimatedSprite2D
-@onready var collision_shape: CollisionObject2D = $CollisionShape2D
+@onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var touch_damage_area: Area2D = $TouchDamageArea
-@onready var touch_damage_shape: CollisionObject2D = $TouchDamageArea/CollisionShape2D
+@onready var touch_damage_shape: CollisionShape2D = $TouchDamageArea/CollisionShape2D
 @onready var explosion_area: Area2D = $ExplosionArea
-@onready var explosion_shape:CollisionObject2D = $ExplosionArea/CollisionShape2D
+@onready var explosion_shape:CollisionShape2D = $ExplosionArea/CollisionShape2D
 
 var target_player: Player = null
 var current_health: int = 1
