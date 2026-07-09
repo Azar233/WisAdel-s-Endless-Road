@@ -9,6 +9,7 @@ const DEFAULT_MOVE_SPEED_MULTIPLIER := 1.0
 const DEFAULT_FIRE_RATE_MULTIPLIER := 1.0
 const SPIRAL_PHASE_STEP := PI / 12
 const BLINK_ENABLED_SHADER_PARAMETER := &"blink_enabled"
+const WORLD_COLLISION_MASK := 1
 
 # 角色动画节点
 @onready var body_sprite: AnimatedSprite2D = $BodySprite2D
@@ -119,9 +120,8 @@ func _try_shoot(shoot_input: Vector2) -> void:
 		return
 	
 	var shoot_direction := shoot_input.normalized()
-	var has_spawn_bullet := _fire_bullets(shoot_direction)
-	if has_spawn_bullet:
-		shooting_timer.start(_get_effective_fire_interval())
+	_fire_bullets(shoot_direction)
+	shooting_timer.start(_get_effective_fire_interval())
 
 # 道具的统一入口
 func apply_pickup(config: PickupConfig) -> bool:
@@ -205,6 +205,9 @@ func _fire_bullets(base_direction: Vector2) -> bool:
 
 # 实例化一颗子弹
 func  _spawn_bullet(shoot_direction: Vector2) -> bool:
+	if not _can_spawn_bullet(shoot_direction):
+		return false
+	
 	var bullet := BULLET_SCENE.instantiate() as Bullet
 	if bullet == null:
 		return false
@@ -220,16 +223,34 @@ func  _spawn_bullet(shoot_direction: Vector2) -> bool:
 	spawn_parent.add_child(bullet)
 	bullet.global_position = global_position + shoot_direction * bullet_spawn_distance
 	return true
+
+# 检查子弹出生点是否有碰撞遮挡
+func _can_spawn_bullet(shoot_direction: Vector2) -> bool:
+	var spawn_position := global_position + shoot_direction * bullet_spawn_distance
+	var space_state := get_world_2d().direct_space_state
+	if space_state == null:
+		return true
 	
+	var query := PhysicsRayQueryParameters2D.create(
+		global_position,
+		spawn_position,
+		WORLD_COLLISION_MASK
+	)
+	query.collide_with_areas = false
+	query.collide_with_bodies = true
+	query.exclude = [get_rid()]
+	
+	var hit_result: Dictionary = space_state.intersect_ray(query)
+	return hit_result.is_empty()
+
 # 螺旋状态下旋转发射子弹
 func _try_auto_spiral_shoot() -> void:
 	if not shooting_timer.is_stopped():
 		return
 	
 	var spiral_direction := Vector2.RIGHT.rotated(spiral_phase)
-	var has_spawned_bullet := _fire_bullets(spiral_direction)
-	if has_spawned_bullet:
-		shooting_timer.start(_get_effective_fire_interval())
+	_fire_bullets(spiral_direction)
+	shooting_timer.start(_get_effective_fire_interval())
 
 # 每帧更新道具buff的剩余时间，到期后恢复默认
 func _update_pickup_effects(delta: float) -> void:

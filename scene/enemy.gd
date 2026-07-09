@@ -25,7 +25,7 @@ enum DeathSequenceStage {
 @onready var touch_damage_area: Area2D = $TouchDamageArea
 @onready var touch_damage_shape: CollisionShape2D = $TouchDamageArea/CollisionShape2D
 @onready var explosion_area: Area2D = $ExplosionArea
-@onready var explosion_shape:CollisionShape2D = $ExplosionArea/CollisionShape2D
+@onready var explosion_shape: CollisionShape2D = $ExplosionArea/CollisionShape2D
 
 var target_player: Player = null
 var current_health: int = 1
@@ -122,8 +122,8 @@ func _apply_collision_radius(radius: float) -> void:
 		
 # 应用爆炸半径
 func _apply_explosion_radius(radius: float) -> void:
-	var explosion_circle_shape := collision_shape.shape as CircleShape2D
-	if explosion_shape != null:
+	var explosion_circle_shape := explosion_shape.shape as CircleShape2D
+	if explosion_circle_shape != null:
 		explosion_circle_shape.radius = maxf(radius, 0.0)
 		
 # 获取敌人速度 
@@ -255,7 +255,7 @@ func _start_explosion_sequence() -> void:
 	# 执行爆炸伤害
 	_try_apply_explosion_damage()
 	
-	if _play_death_sequence_animation(config.explode_animation_name, DeathSequenceStage.EXPLOSION):
+	if _play_death_sequence_animation(config.explosion_animation_name, DeathSequenceStage.EXPLOSION):
 		return
 	
 	queue_free()
