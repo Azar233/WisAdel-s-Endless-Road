@@ -26,6 +26,9 @@ enum DeathSequenceStage {
 @onready var touch_damage_shape: CollisionShape2D = $TouchDamageArea/CollisionShape2D
 @onready var explosion_area: Area2D = $ExplosionArea
 @onready var explosion_shape: CollisionShape2D = $ExplosionArea/CollisionShape2D
+@onready var hit_sfx_player: AudioStreamPlayer = $AudioContainer/HitSfxPlayer
+@onready var die_sfx_player: AudioStreamPlayer = $AudioContainer/DieSfxPlayer
+@onready var explode_sfx_player: AudioStreamPlayer = $AudioContainer/ExplodeSfxPlayer
 
 var target_player: Player = null
 var current_health: int = 1
@@ -70,6 +73,7 @@ func apply_damage(amount: int) -> bool:
 		return true
 	
 	_start_hurt_blink()
+	_play_sfx(hit_sfx_player)
 	
 	return true
 
@@ -235,6 +239,8 @@ func _start_death_sequence() -> void:
 		queue_free()
 		return
 	
+	_play_sfx(die_sfx_player)
+	
 	if _play_death_sequence_animation(config.death_animation_name, DeathSequenceStage.DEATH):
 		return
 	
@@ -254,6 +260,7 @@ func _start_explosion_sequence() -> void:
 		return
 	# 执行爆炸伤害
 	_try_apply_explosion_damage()
+	_play_sfx(explode_sfx_player)
 	
 	if _play_death_sequence_animation(config.explosion_animation_name, DeathSequenceStage.EXPLOSION):
 		return
@@ -405,6 +412,11 @@ func _on_animated_sprite_animation_finished() -> void:
 		_:
 			queue_free()	
 	
+func _play_sfx(audio_player: AudioStreamPlayer) -> void:
+	if audio_player == null or audio_player.stream == null:
+		return
+	audio_player.stop()
+	audio_player.play()
 	
 	
 	

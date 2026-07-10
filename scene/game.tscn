@@ -4,6 +4,10 @@
 [ext_resource type="Script" uid="uid://bkplet1bvebjc" path="res://scene/game.gd" id="1_xwcet"]
 [ext_resource type="Texture2D" uid="uid://mrwofb5mb246" path="res://resources/texture/动态瓦片.png" id="2_33cqm"]
 [ext_resource type="PackedScene" uid="uid://6kgnrlm3fba5" path="res://scene/player.tscn" id="3_33cqm"]
+[ext_resource type="Texture2D" uid="uid://m2dksjrpm1j1" path="res://resources/texture/道具ui.png" id="5_p1ry8"]
+[ext_resource type="FontFile" uid="uid://d30aoelgrbrmo" path="res://resources/font/IPix.ttf" id="6_xlg7c"]
+[ext_resource type="AudioStream" uid="uid://dvacm5blei8u5" path="res://resources/audio/Cowboy_Secret.wav" id="7_ll5lq"]
+[ext_resource type="AudioStream" uid="uid://des54chbhpygm" path="res://resources/audio/cowboy_dead.wav" id="8_17rxn"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_xwcet"]
 texture = ExtResource("1_dbls1")
@@ -93,6 +97,10 @@ b = Vector2(256, 256)
 a = Vector2(256, 256)
 b = Vector2(0, 256)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_xlg7c"]
+atlas = ExtResource("5_p1ry8")
+region = Rect2(16, 6, 48, 7)
+
 [node name="Game" type="Node2D" unique_id=1572525902]
 script = ExtResource("1_xwcet")
 
@@ -147,3 +155,53 @@ shape = SubResource("SegmentShape2D_p1ry8")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="WorldBounds/DownBoundary" unique_id=377660137]
 shape = SubResource("SegmentShape2D_xlg7c")
+
+[node name="HUDLayer" type="Node2D" parent="." unique_id=2112423592]
+
+[node name="LifeIcon" type="Sprite2D" parent="HUDLayer" unique_id=1501286269]
+position = Vector2(-48, 16)
+texture = ExtResource("5_p1ry8")
+region_enabled = true
+region_rect = Rect2(0, 18, 16, 11)
+
+[node name="LifeCountLabel" type="Label" parent="HUDLayer" unique_id=85535658]
+offset_left = -34.0
+offset_top = 7.0
+offset_right = -10.0
+offset_bottom = 30.0
+theme_override_fonts/font = ExtResource("6_xlg7c")
+text = "x5"
+
+[node name="TimeIcon" type="Sprite2D" parent="HUDLayer" unique_id=1572347914]
+position = Vector2(34, -5.9999995)
+scale = Vector2(0.6818182, 0.5769231)
+texture = ExtResource("5_p1ry8")
+region_enabled = true
+region_rect = Rect2(3, 2, 11, 13)
+
+[node name="TimeBar" type="Sprite2D" parent="HUDLayer" unique_id=1292777123]
+position = Vector2(127.00001, -6)
+scale = Vector2(3.6249998, 1)
+texture = SubResource("AtlasTexture_xlg7c")
+region_rect = Rect2(16, 6, 48, 7)
+
+[node name="AcceptDialog" type="AcceptDialog" parent="." unique_id=909337178]
+process_mode = 2
+oversampling_override = 1.0
+position = Vector2i(0, 36)
+size = Vector2i(200, 100)
+unresizable = true
+
+[node name="AudioContainer" type="Node" parent="." unique_id=247719766]
+
+[node name="BgmPlayer" type="AudioStreamPlayer" parent="AudioContainer" unique_id=1402081450]
+stream = ExtResource("7_ll5lq")
+autoplay = true
+
+[node name="ResultWinSfxPlayer" type="AudioStreamPlayer" parent="AudioContainer" unique_id=1050310064]
+process_mode = 2
+stream = ExtResource("7_ll5lq")
+
+[node name="ResultLoseSfxPlayer" type="AudioStreamPlayer" parent="AudioContainer" unique_id=1859263524]
+process_mode = 2
+stream = ExtResource("8_17rxn")

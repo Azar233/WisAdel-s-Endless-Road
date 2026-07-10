@@ -17,6 +17,10 @@ const WORLD_COLLISION_MASK := 1
 @onready var armed_effect_sprite:AnimatedSprite2D = $ArmedEffectSprite2D
 # 射击冷却计时器
 @onready var shooting_timer: Timer = $ShootingTimer
+@onready var shoot_sfx_player: AudioStreamPlayer = $AudioContainer/ShootSfxPlayer
+@onready var move_sfx_player: AudioStreamPlayer = $AudioContainer/MoveSfxPlayer
+@onready var pickup_sfx_player: AudioStreamPlayer = $AudioContainer/PickupSfxPlayer
+
 
 # 当前朝向后缀
 var facing_suffix: StringName = &"right"
@@ -69,15 +73,18 @@ func _physics_process(delta: float) -> void:
 	
 	if is_dead:
 		velocity = Vector2.ZERO
+		_set_move_sfx_active(false)
 		return
 
 	# 读取移动方向
 	var move_input := Input.get_vector("move_left","move_right","move_up","move_down")
 	# 读取射击方向
 	var shoot_input:= Input.get_vector("shoot_left","shoot_right","shoot_up","shoot_down")
+	var is_moving := move_input != Vector2.ZERO
 	
 	velocity = move_input * _get_effective_move_speed()
 	move_and_slide()
+	_set_move_sfx_active(is_moving)
 	
 	if current_shot_pattern == PickupConfig.ShotPattern.SPIRAL:
 		_try_auto_spiral_shoot()
@@ -120,7 +127,10 @@ func _try_shoot(shoot_input: Vector2) -> void:
 		return
 	
 	var shoot_direction := shoot_input.normalized()
-	_fire_bullets(shoot_direction)
+	var has_spawned_bullet :=  _fire_bullets(shoot_direction)
+	if has_spawned_bullet:
+		_play_sfx(shoot_sfx_player)
+		
 	shooting_timer.start(_get_effective_fire_interval())
 
 # 道具的统一入口
@@ -167,6 +177,9 @@ func apply_pickup(config: PickupConfig) -> bool:
 	
 	if should_refresh_shooting_timer:
 		_refresh_shooting_timer_wait_time()
+	
+	if applied:
+		_play_sfx(pickup_sfx_player)
 	
 	return applied
 	
@@ -249,7 +262,10 @@ func _try_auto_spiral_shoot() -> void:
 		return
 	
 	var spiral_direction := Vector2.RIGHT.rotated(spiral_phase)
-	_fire_bullets(spiral_direction)
+	var has_spawned_bullet := _fire_bullets(spiral_direction)
+	if has_spawned_bullet:
+		_play_sfx(shoot_sfx_player)
+		
 	shooting_timer.start(_get_effective_fire_interval())
 
 # 每帧更新道具buff的剩余时间，到期后恢复默认
@@ -339,6 +355,7 @@ func _die() -> void:
 	invincibility_time_left = 0.0
 	_set_hurt_blink_enabled(false)
 	shooting_timer.stop()
+	_set_move_sfx_active(false)
 	armed_effect_sprite.visible = false
 	armed_effect_sprite.stop()
 
@@ -371,7 +388,31 @@ func _update_armed_effect() -> void:
 		
 	if armed_effect_sprite.sprite_frames.has_animation("&default"):
 		armed_effect_sprite.play("&default")
-	
+
+# 音频播放相关接口
+func stop_runtime_audio() -> void:
+	_set_move_sfx_active(false)
+	if shoot_sfx_player != null and shoot_sfx_player.playing:
+		shoot_sfx_player.stop()
+	if pickup_sfx_player != null and pickup_sfx_player.playing:
+		pickup_sfx_player.stop()
+
+func _set_move_sfx_active(active: bool) -> void:
+	if move_sfx_player == null or move_sfx_player.stream == null:
+		return
+	if active:
+		if not move_sfx_player.playing:
+			move_sfx_player.play()
+			return
+	if move_sfx_player.playing:
+		move_sfx_player.stop()
+
+func _play_sfx(audio_player: AudioStreamPlayer) -> void:
+	if audio_player == null or audio_player.stream == null:
+		return
+	audio_player.stop()
+	audio_player.play()
+
 # 将二维vec映射为四方动画
 func _vector_to_facing_suffix(direction: Vector2) -> StringName:
 	if abs(direction.x) >= abs(direction.y):

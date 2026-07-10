@@ -4,6 +4,9 @@
 [ext_resource type="Texture2D" uid="uid://hxpas7ql7d8l" path="res://resources/texture/W.png" id="1_xo3ru"]
 [ext_resource type="Shader" uid="uid://bot24khn5mfkr" path="res://scene/blink.gdshader" id="2_ct4mp"]
 [ext_resource type="Texture2D" uid="uid://c11lywox72tt" path="res://resources/texture/浮游炮.png" id="2_hjaqi"]
+[ext_resource type="AudioStream" uid="uid://c68djw3bta8um" path="res://resources/audio/Cowboy_gunshot.wav" id="5_hp4bs"]
+[ext_resource type="AudioStream" uid="uid://dgywijq5ccn2" path="res://resources/audio/Cowboy_Footstep.wav" id="6_g2vtq"]
+[ext_resource type="AudioStream" uid="uid://ruaobgfnnhvd" path="res://resources/audio/cowboy_powerup.wav" id="7_2fvbb"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_hjaqi"]
 radius = 6.0
@@ -403,3 +406,14 @@ autoplay = "normal_right"
 sprite_frames = SubResource("SpriteFrames_wsvhi")
 
 [node name="ShootingTimer" type="Timer" parent="." unique_id=1480205772]
+
+[node name="AudioContainer" type="Node" parent="." unique_id=1835496756]
+
+[node name="ShootSfxPlayer" type="AudioStreamPlayer" parent="AudioContainer" unique_id=1769608019]
+stream = ExtResource("5_hp4bs")
+
+[node name="MoveSfxPlayer" type="AudioStreamPlayer" parent="AudioContainer" unique_id=833413006]
+stream = ExtResource("6_g2vtq")
+
+[node name="PickupSfxPlayer" type="AudioStreamPlayer" parent="AudioContainer" unique_id=2065974264]
+stream = ExtResource("7_2fvbb")
